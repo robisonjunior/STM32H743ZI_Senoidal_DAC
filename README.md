@@ -1,60 +1,65 @@
-\# GoHobby Servo Converter (PIC12F1840)
+# Gerador de Sinais Sweep com DAC, DMA e Timer 6 (STM32H7)
 
+Firmware em C desenvolvido para microcontroladores **STM32H7**, implementando a geração contínua de ondas senoidais via **DAC (Digital-to-Analog Converter)** atualizadas por **DMA** acionado por hardware pelo **Timer 6**, com uma máquina de estados para execução de **Sweep Linear de Frequência** em múltiplos estágios em loop infinito.
 
+---
 
-Este projeto consiste em um firmware desenvolvido em C para o microcontrolador \*\*PIC12F1840\*\*, projetado para ler o sinal PWM de um canal do receptor de controle remoto de um drone GoHobby e convertê-lo/mapeá-lo em um sinal PWM padrão para controle de servomotores de 0 a 180 graus.
+## 📋 Funcionalidades
 
+- **Geração de Senoide por DMA/DAC:** Utiliza uma tabela de 128 pontos de 8 bits transferidos via DMA para o DAC sem sobrecarregar a CPU.
+- **Varredura de Frequência (Sweep) Automática:** O sistema executa um perfil programado de 5 estágios sequenciais cobrindo frequências de **5 Hz até 2 kHz** ao longo de um ciclo total de 20 minutos.
+- **Controle Preciso por Timer (TIM6):** Atualização dinâmica dos registradores `ARR` (Auto-Reload Register) e `PSC` (Prescaler) do Timer 6 para rampa linear exata de frequência.
+- **Gerenciamento de Cache (STM32H7):** Limpeza e sincronização do Data Cache (`SCB_CleanDCache_by_Addr`) para garantir leituras corretas do DMA na memória.
 
+---
 
-\## 📌 Funcionalidades
+## 📊 Estrutura dos Estágios de Sweep
 
-\* \*\*Leitura de Pulso de Entrada:\*\* Captura e decodifica a largura de pulso (geralmente entre 1ms e 2ms) vinda do receptor do drone.
+O perfil de frequência é executado de forma cíclica e contínua através de 5 estágios:
 
-\* \*\*Mapeamento de Sinal:\*\* Converte a faixa de entrada dinamicamente para os tempos de ciclo de um servomotor mecânico padrão (0° a 180°).
+| Estágio | Frequência Inicial | Frequência Final | Duração | Prescaler (PSC) | Clock Efetivo |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| **1** | 5.0 Hz | 22.5 Hz | 6 minutos (360 s) | `9` | 20 MHz |
+| **2** | 22.5 Hz | 110.0 Hz | 5 minutos (300 s) | `0` | 200 MHz |
+| **3** | 110.0 Hz | 500.0 Hz | 4 minutos (240 s) | `0` | 200 MHz |
+| **4** | 500.0 Hz | 900.0 Hz | 3 minutos (180 s) | `0` | 200 MHz |
+| **5** | 900.0 Hz | 2000.0 Hz | 2 minutos (120 s) | `0` | 200 MHz |
 
-\* \*\*Saída PWM Estabilizada:\*\* Gera o sinal de saída na frequência correta de operação dos servos (50Hz).
+*(Após o término do Estágio 5, o sistema reinicia automaticamente no Estágio 1).*
 
+---
 
+## 🛠️ Especificações Técnicas e Periféricos
 
-\## 🛠️ Tecnologias e Ferramentas
+- **Clock do Sistema (SYSCLK):** Configurado a 400 MHz (HSE Bypass com PLL).
+- **Periférico DAC:** Canal configurado com buffer de saída ativado e gatilho de disparo por transbordamento do Timer 6 (`DAC_TRIGGER_T6_TRGO`).
+- **Buffer de Onda:** Tabela estática de 128 pontos de senoide de 8 bits atenuada para evitar saturação do DAC.
+- **Base de Tempo:** `HAL_GetTick()` utilizado para amostragem e cálculo de rampa a cada 100 ms no loop principal.
 
-\* \*\*Ambiente de Desenvolvimento:\*\* MPLAB X IDE
+---
 
-\* \*\*Compilador:\*\* Microchip XC8
+## ⚙️ Arquitetura do Software
 
-\* \*\*Microcontrolador:\*\* Microchip PIC12F1840
+1. **Inicialização (`main`):**
+   - Configuração da MPU e ativação das Caches L1 (Instruction e Data Cache).
+   - Inicialização da HAL, clocks do sistema (400 MHz) e LED de status.
+   - Configuração do Timer 6 e inicialização do DAC com o primeiro estágio de 5 Hz.
+2. **Loop Principal (`while(1)`):**
+   - Executa continuamente a função `Processar_Sweep_Senoide()`.
+   - A cada 100 ms, calcula a fração de tempo decorrida no estágio atual, determina a frequência instantânea da rampa linear e recalcula o valor do `ARR` do Timer 6.
+   - Ao estourar a duração do estágio, avança para o próximo nível ou reinicia o ciclo completo.
 
+---
 
+## 📁 Estrutura do Projeto
 
-\## 🔌 Conexões do Circuito (Pinagem)
+```text
+├── Src/
+│   └── main.c              # Configuração do sistema, DAC, Timer 6 e lógica de Sweep
+├── Inc/
+│   └── main.h              # Definições de protótipos e includes da HAL
+└── README.md               # Documentação do projeto
 
-\* \*\*VCC:\*\* 5V (Garantir alimentação regulada para o PIC)
-
-\* \*\*GND:\*\* Terra comum (interligado com a bateria/ESC do drone e o servo)
-
-\* \*\*Entrada (Signal In):\*\* Pino RC\_IN \_\[Atualizar com o pino correto, ex: RA2]\_ <- Conectado ao receptor do Drone
-
-\* \*\*Saída (Servo Out):\*\* Pino SERVO\_OUT \_\[Atualizar com o pino correto, ex: RA0]\_ -> Conectado ao sinal do Servo
-
-
-
-\## 🚀 Como clonar e compilar
-
-1\. Clone o repositório em sua pasta de projetos:
-
-&#x20;  ```bash
-
-&#x20;  git clone https://github.com
-
-&#x20;  ```
-
-2\. Abra o MPLAB X IDE.
-
-3\. Vá em \*\*File > Open Project\*\* e selecione a pasta `GoHobby\_Servo.X`.
-
-4\. Certifique-se de ter o compilador XC8 instalado e configurado nas propriedades do projeto.
-
-5\. Clique em \*\*Clean and Build\*\*.
 
 
 
