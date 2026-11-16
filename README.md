@@ -1,4 +1,4 @@
-# Gerador de Sinais Sweep com DAC, DMA e Timer 6 (STM32H7)
+# Gerador de Sinais Sweep com DAC, DMA e Timer 6 (STM32H743)
 
 Firmware em C desenvolvido para microcontroladores **STM32H7**, implementando a geração contínua de ondas senoidais via **DAC (Digital-to-Analog Converter)** atualizadas por **DMA** acionado por hardware pelo **Timer 6**, com uma máquina de estados para execução de **Sweep Linear de Frequência** em múltiplos estágios em loop infinito.
 
